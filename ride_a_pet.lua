@@ -14,7 +14,7 @@ for _, gui in ipairs(guiLocation:GetChildren()) do
 end
 
 -- ==========================================
--- 2. UI INITIALIZATION
+-- 2. UI INITIALIZATION (Jaeii Cute Framework)
 -- ==========================================
 task.spawn(pcall, function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/tienkhanh1/spicy/refs/heads/main/DiscordLink"))()
@@ -44,19 +44,18 @@ assert(type(v) == "table" and type(v.CreateWindow) == "function" and type(v.Fina
 
 v.ManualQuickDefaults = { LeftCenterHidden = true }
 
-local v2 = v:CreateWindow({ Name = "Jaeii Cute", DefaultTab = "Main" })
+local v2 = v:CreateWindow({ Name = "Jaeii Cute", DefaultTab = "Farm" })
 local defaultTab = v2:GetDefaultTab()
 
 -- ==========================================
--- 3. GAME SERVICES & VARIABLES
+-- 3. GAME SERVICES & INITIAL SETUP
 -- ==========================================
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local localPlayer = Players.LocalPlayer
-local activeEggs = ReplicatedStorage:WaitForChild("ServerData"):WaitForChild("ActiveEggs")
 local gameRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Game")
-local v3 = guiLocation
+local activeEggs = ReplicatedStorage:WaitForChild("ServerData"):WaitForChild("ActiveEggs")
 
 local function fn7(arg)
     local ok, result = pcall(function() return require(arg()) end)
@@ -64,7 +63,8 @@ local function fn7(arg)
 end
 
 local tbl = {
-    Eggs = fn7(function() return ReplicatedStorage.GameData.Eggs end)
+    Eggs = fn7(function() return ReplicatedStorage.GameData.Eggs end),
+    EggBaskets = fn7(function() return ReplicatedStorage.GameData.EggBaskets end),
 }
 
 local function fn2()
@@ -79,10 +79,12 @@ local function fn2()
 end
 
 -- ==========================================
--- 4. SHARED UTILITIES & RARITY DATA
+-- 4. UTILITIES & CONFIG DATA
 -- ==========================================
 local tbl3 = {}
 local tbl5 = { "Common", "Rare", "Epic", "Legendary", "Mythic", "Divine", "Ethereal" }
+tbl3.RarityRank = {}
+for i, v5_item in ipairs(tbl5) do tbl3.RarityRank[v5_item] = i end
 
 tbl3.RarityColors = {
     Common = Color3.fromRGB(214, 218, 228),
@@ -94,6 +96,8 @@ tbl3.RarityColors = {
     Ethereal = Color3.fromRGB(125, 225, 255),
 }
 
+tbl3.Status = "Idle"
+
 tbl3.Root = function()
     local character = localPlayer.Character
     character = character and character:FindFirstChild("HumanoidRootPart")
@@ -103,10 +107,50 @@ tbl3.Root = function()
     return nil
 end
 
+tbl3.Plot = function()
+    local plots = workspace:FindFirstChild("Plots")
+    if not plots then return nil end
+    for _, child in ipairs(plots:GetChildren()) do
+        local data = child:FindFirstChild("Data")
+        data = data and data:FindFirstChild("Owner")
+        if data and data.Value == localPlayer then
+            return child
+        end
+    end
+    return nil
+end
+
+tbl3.PlotBase = function()
+    local baseplate = tbl3.Plot()
+    baseplate = baseplate and baseplate:FindFirstChild("Baseplate")
+    if baseplate and baseplate:IsA("BasePart") then
+        return baseplate
+    end
+    return nil
+end
+
+tbl3.PlotTop = function()
+    local v6 = tbl3.PlotBase()
+    if not v6 then return nil end
+    return v6.Position + Vector3.new(0, v6.Size.Y / 2, 0)
+end
+
+tbl3.Fire = function(arg, ...)
+    local v6 = gameRemote:FindFirstChild(arg)
+    if not v6 or not v6:IsA("RemoteEvent") then return false end
+    local v7 = table.pack(...)
+    return pcall(function() v6:FireServer(table.unpack(v7, 1, v7.n)) end)
+end
+
 tbl3.EggData = function(arg)
     local eggs = tbl.Eggs
     local flag = type(eggs) == "table" and eggs[tostring(arg)] or nil
     return type(flag) == "table" and flag or nil
+end
+
+tbl3.EggRank = function(arg)
+    local v6 = tbl3.EggData(arg)
+    return v6 and tbl3.RarityRank[tostring(v6.Rarity)] or 0
 end
 
 tbl3.EggRarity = function(arg)
@@ -114,61 +158,33 @@ tbl3.EggRarity = function(arg)
     return v6 and tostring(v6.Rarity) or "Common"
 end
 
--- ==========================================
--- 5. TP AUTO FARM & VOLCANO DIP LOGIC
--- ==========================================
-local farmSection = defaultTab:CreateSection({ Name = "TP Auto Farm", Expanded = true })
-
-local volcanoPos = Vector3.new(-5117.2, 41405.4, -3480.0) 
-
-local autoFarmTP = false
-local tpDelay = 0.3
-local farmTargetRarities = {}
-local volcanoDipEnabled = false
-
-local function FireRemote(remoteName, ...)
-    local remote = gameRemote:FindFirstChild(remoteName)
-    if remote and remote:IsA("RemoteEvent") then
-        pcall(function(...) remote:FireServer(...) end, ...)
-    end
-end
-
-local function getPlotDropPosition()
-    local plots = workspace:FindFirstChild("Plots")
-    if plots then
-        for _, plot in ipairs(plots:GetChildren()) do
-            local data = plot:FindFirstChild("Data")
-            local owner = data and data:FindFirstChild("Owner")
-            if owner and owner.Value == localPlayer then
-                local baseplate = plot:FindFirstChild("Baseplate")
-                if baseplate then
-                    return baseplate.Position + Vector3.new(0, (baseplate.Size.Y / 2) + 5, 0)
-                end
-            end
-        end
-    end
-    return nil
-end
-
-local function getBasketEggs()
+tbl3.BasketCount = function()
     local basket = localPlayer:FindFirstChild("Basket")
-    local eggsToDrop = {}
-    if basket then
-        for _, child in ipairs(basket:GetChildren()) do
-            local eggType = child:GetAttribute("Egg")
-            if type(eggType) == "string" then
-                table.insert(eggsToDrop, eggType)
-            end
-        end
-    end
-    return eggsToDrop
+    return basket and #basket:GetChildren() or 0
 end
 
--- Helper to click the game's native UI prompt
+tbl3.BasketCapacity = function()
+    local EquippedEggBasket = localPlayer:FindFirstChild("SavedData") and localPlayer.SavedData:FindFirstChild("EquippedEggBasket") and localPlayer.SavedData.EquippedEggBasket.Value
+    local eggBaskets = tbl.EggBaskets
+    local flag = type(eggBaskets) == "table" and EquippedEggBasket and eggBaskets[tostring(EquippedEggBasket)] or nil
+    local n = type(flag) == "table" and tonumber(flag.Capacity) or 1
+    return math.max(1, n > 50 and 50 or n)
+end
+
+-- ==========================================
+-- 5. DYNAMIC RUNTIME AUTO-FARM & VOLCANO DIP
+-- ==========================================
+local farmSection = defaultTab:CreateSection({ Name = "Auto Collect & Volcano Dip", Expanded = true })
+
+local volcanoPos = Vector3.new(-5117.2, 41405.4, -3480.0)
+local autoCollectEnabled = false
+local volcanoDipEnabled = false
+local farmTargetRarities = {}
+local tpDelay = 0.3
+
 local function ClickVolcanoDropUI()
     local pGui = localPlayer:FindFirstChild("PlayerGui")
     if not pGui then return false end
-    
     for _, desc in ipairs(pGui:GetDescendants()) do
         if (desc:IsA("TextLabel") or desc:IsA("TextButton")) and desc.Text then
             local text = string.lower(desc.Text)
@@ -185,136 +201,149 @@ local function ClickVolcanoDropUI()
     return false
 end
 
+local function getBasketEggsList()
+    local basket = localPlayer:FindFirstChild("Basket")
+    local items = {}
+    if basket then
+        for _, child in ipairs(basket:GetChildren()) do
+            local eggType = child:GetAttribute("Egg")
+            if type(eggType) == "string" then
+                table.insert(items, eggType)
+            end
+        end
+    end
+    return items
+end
+
 task.spawn(function()
     while task.wait(0.1) do
-        if not autoFarmTP then continue end
-        
+        if not autoCollectEnabled then continue end
         local root = tbl3.Root()
         if not root then continue end
-
-        local basketEggs = getBasketEggs()
-
-        -- Bring any stuck eggs home first
-        if #basketEggs > 0 then
-            local dropPos = getPlotDropPosition()
-            if dropPos then
-                root.CFrame = CFrame.new(dropPos)
+        
+        local basketEggs = getBasketEggsList()
+        if #basketEggs > 0 and tbl3.BasketCount() >= tbl3.BasketCapacity() then
+            local plotTop = tbl3.PlotTop()
+            if plotTop then
+                tbl3.Status = "Bringing eggs home"
+                root.CFrame = CFrame.new(plotTop + Vector3.new(0, 4, 0))
                 root.AssemblyLinearVelocity = Vector3.zero
-                task.wait(tpDelay) 
+                
+                -- Delay only triggers if volcano dip is active
+                task.wait(volcanoDipEnabled and 3.0 or tpDelay)
                 
                 for _, eggType in ipairs(basketEggs) do
-                    FireRemote("BasketDrop", eggType)
+                    tbl3.Fire("BasketDrop", eggType)
                 end
                 task.wait(0.5)
             end
             continue
         end
-
-        local nearestEgg = nil
-        local minDist = math.huge
         
-        for _, egg in ipairs(activeEggs:GetChildren()) do
-            local pos = egg:GetAttribute("Position")
-            local privateTo = egg:GetAttribute("PrivateTo")
-            local eggName = egg:GetAttribute("Egg")
+        local availableEggs = {}
+        for _, child in ipairs(activeEggs:GetChildren()) do
+            local eggName = child:GetAttribute("Egg")
+            local eggPos = child:GetAttribute("Position")
+            local privateTo = child:GetAttribute("PrivateTo")
             
-            if typeof(pos) == "Vector3" and (privateTo == nil or privateTo == localPlayer.UserId) then
-                if type(eggName) == "string" then
-                    local rarityName = tbl3.EggRarity(eggName)
-                    if next(farmTargetRarities) ~= nil and not farmTargetRarities[rarityName] then 
-                        continue 
-                    end
-                end
-
-                local dist = (pos - root.Position).Magnitude
-                if dist < minDist then
-                    minDist = dist
-                    nearestEgg = egg
+            if type(eggName) == "string" and typeof(eggPos) == "Vector3" and (privateTo == nil or privateTo == localPlayer.UserId) then
+                local rarityName = tbl3.EggRarity(eggName)
+                if next(farmTargetRarities) == nil or farmTargetRarities[rarityName] then
+                    table.insert(availableEggs, {
+                        Instance = child,
+                        Name = eggName,
+                        Position = eggPos,
+                        Rank = tbl3.EggRank(eggName),
+                        Distance = (eggPos - root.Position).Magnitude
+                    })
                 end
             end
         end
-
-        if nearestEgg then
-            local pos = nearestEgg:GetAttribute("Position")
-            local targetEggId = nearestEgg.Name
-
-            -- 1. Pick up the egg from map
-            root.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
-            root.AssemblyLinearVelocity = Vector3.zero
-            task.wait(tpDelay) 
-            FireRemote("EggPickup", targetEggId)
-            task.wait(0.5) 
+        
+        table.sort(availableEggs, function(a, b)
+            if a.Rank ~= b.Rank then return a.Rank > b.Rank end
+            return a.Distance < b.Distance
+        end)
+        
+        if #availableEggs > 0 then
+            local target = availableEggs[1]
+            tbl3.Status = string.format("Collecting %s", target.Name)
             
-            -- 2. VOLCANO DIP SEQUENCE
-            if volcanoDipEnabled and volcanoPos ~= Vector3.zero then
-                local basketHasEgg = false
-                local basketCheck = localPlayer:FindFirstChild("Basket")
-                if basketCheck and #basketCheck:GetChildren() > 0 then
-                    basketHasEgg = true
+            root.CFrame = CFrame.new(target.Position + Vector3.new(0, 3, 0))
+            root.AssemblyLinearVelocity = Vector3.zero
+            task.wait(tpDelay)
+            
+            if target.Instance.Parent ~= nil then
+                local prevCount = tbl3.BasketCount()
+                tbl3.Fire("EggPickup", target.Instance.Name)
+                
+                local waitTimeout = os.clock() + 1.5
+                while tbl3.BasketCount() == prevCount and os.clock() < waitTimeout do
+                    RunService.Heartbeat:Wait()
                 end
-
-                if basketHasEgg then
+                
+                if volcanoDipEnabled and volcanoPos ~= Vector3.zero and tbl3.BasketCount() > prevCount then
+                    tbl3.Status = "Volcano Dipping..."
                     root.CFrame = CFrame.new(volcanoPos + Vector3.new(0, 5, 0))
                     root.AssemblyLinearVelocity = Vector3.zero
                     task.wait(tpDelay)
                     
-                    -- Trigger UI click to drop in volcano
                     ClickVolcanoDropUI()
+                    task.wait(5.5) -- Mutation wait time
                     
-                    -- Increased mutation wait time to 4.5 seconds
-                    task.wait(4.5)
-                    
-                    -- Actively scan the volcano zone until the egg spawns back in workspace
                     local dippedEggId = nil
-                    local timeout = 0
-                    while not dippedEggId and timeout < 6.0 do
+                    local scanTimer = 0
+                    while not dippedEggId and scanTimer < 6.0 do
                         task.wait(0.2)
-                        timeout = timeout + 0.2
-                        for _, egg in ipairs(activeEggs:GetChildren()) do
-                            local ePos = egg:GetAttribute("Position")
-                            local privateTo = egg:GetAttribute("PrivateTo")
-                            if ePos and (privateTo == nil or privateTo == localPlayer.UserId) then
-                                if Vector2.new(ePos.X - volcanoPos.X, ePos.Z - volcanoPos.Z).Magnitude < 45 then
-                                    dippedEggId = egg.Name
-                                    break
-                                end
+                        scanTimer += 0.2
+                        for _, eggChild in ipairs(activeEggs:GetChildren()) do
+                            local ePos = eggChild:GetAttribute("Position")
+                            if ePos and Vector2.new(ePos.X - volcanoPos.X, ePos.Z - volcanoPos.Z).Magnitude < 50 then
+                                dippedEggId = eggChild.Name
+                                break
                             end
                         end
                     end
                     
-                    -- Grab the dipped egg with an extended safe delay
                     if dippedEggId then
                         root.CFrame = CFrame.new(volcanoPos + Vector3.new(0, 3, 0))
                         root.AssemblyLinearVelocity = Vector3.zero
-                        task.wait(1.0) -- Extended delay before sending the pickup request
-                        FireRemote("EggPickup", dippedEggId)
-                        task.wait(0.8)
+                        task.wait(1.0)
+                        tbl3.Fire("EggPickup", dippedEggId)
+                        task.wait(1.0)
+                    end
+                end
+                
+                if tbl3.BasketCount() > 0 then
+                    local plotTop = tbl3.PlotTop()
+                    if plotTop then
+                        tbl3.Status = "Bringing eggs home"
+                        root.CFrame = CFrame.new(plotTop + Vector3.new(0, 4, 0))
+                        root.AssemblyLinearVelocity = Vector3.zero
+                        
+                        -- Delay only triggers if volcano dip is active
+                        task.wait(volcanoDipEnabled and 3.0 or tpDelay)
+                        
+                        local remainingEggs = getBasketEggsList()
+                        for _, eggType in ipairs(remainingEggs) do
+                            tbl3.Fire("BasketDrop", eggType)
+                        end
+                        task.wait(0.5)
                     end
                 end
             end
-            
-            -- 3. Teleport back to Base Plot and Drop
-            local dropPos = getPlotDropPosition()
-            if dropPos then
-                root.CFrame = CFrame.new(dropPos)
-                root.AssemblyLinearVelocity = Vector3.zero
-                task.wait(tpDelay) 
-                
-                local currentBasket = getBasketEggs()
-                for _, eggType in ipairs(currentBasket) do
-                    FireRemote("BasketDrop", eggType)
-                end
-                task.wait(0.5)
-            end
+        else
+            tbl3.Status = "No matching eggs found"
+            task.wait(1)
         end
     end
 end)
 
 farmSection:CreateToggle({
-    Name = "Enable TP Farm",
+    Name = "Auto Collect Eggs",
     Default = false,
     Callback = function(state)
-        autoFarmTP = state
+        autoCollectEnabled = state
     end,
 })
 
@@ -326,11 +355,8 @@ farmSection:CreateMultiDropdown({
         farmTargetRarities = {}
         if type(selected) == "table" then
             for k, val in pairs(selected) do
-                if val == true and type(k) == "string" then
-                    farmTargetRarities[k] = true
-                elseif type(val) == "string" then
-                    farmTargetRarities[val] = true
-                end
+                if val == true and type(k) == "string" then farmTargetRarities[k] = true
+                elseif type(val) == "string" then farmTargetRarities[val] = true end
             end
         end
     end,
@@ -357,16 +383,15 @@ farmSection:CreateSlider({
 })
 
 -- ==========================================
--- 6. EGG ESP LOGIC
+-- 6. EGG ESP LOGIC (With Multi-Dropdown)
 -- ==========================================
-local espSection = defaultTab:CreateSection({ Name = "Egg ESP", Expanded = true })
+local espSection = defaultTab:CreateSection({ Name = "Egg ESP", Expanded = false })
 local font = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.ExtraBold, Enum.FontStyle.Normal)
 local espTargetRarities = {}
 local espEnabled = false
-local weightRatio = 6.51
-local folder = nil
-local eggTracker = {}
-local connections = {}
+local espFolder = nil
+local eggTrackers = {}
+local espConnections = {}
 
 local function createStrokeText(parent, sizeOffset)
     parent.BackgroundTransparency = 1
@@ -386,25 +411,23 @@ local function createStrokeText(parent, sizeOffset)
 end
 
 local function removeEsp(child)
-    local data = eggTracker[child]
+    local data = eggTrackers[child]
     if data then
-        eggTracker[child] = nil
+        eggTrackers[child] = nil
         pcall(function() data.Gui:Destroy() end)
     end
 end
 
 local function addEsp(arg)
-    if eggTracker[arg] or not folder then return end
+    if eggTrackers[arg] or not espFolder then return end
+    local eggName = arg:GetAttribute("Egg")
+    local eggPos = arg:GetAttribute("Position")
+    if type(eggName) ~= "string" or typeof(eggPos) ~= "Vector3" then return end
     
-    local attribute = arg:GetAttribute("Egg")
-    local attribute2 = arg:GetAttribute("Position")
+    local privateTo = arg:GetAttribute("PrivateTo")
+    if privateTo ~= nil and privateTo ~= localPlayer.UserId then return end
     
-    if type(attribute) ~= "string" or typeof(attribute2) ~= "Vector3" then return end
-    
-    local attribute3 = arg:GetAttribute("PrivateTo")
-    if attribute3 ~= nil and attribute3 ~= localPlayer.UserId then return end
-
-    local rarityName = tbl3.EggRarity(attribute)
+    local rarityName = tbl3.EggRarity(eggName)
     if next(espTargetRarities) ~= nil and not espTargetRarities[rarityName] then return end
     
     local billboardGui = Instance.new("BillboardGui")
@@ -413,7 +436,7 @@ local function addEsp(arg)
     billboardGui.LightInfluence = 0
     billboardGui.Size = UDim2.fromOffset(170, 46)
     billboardGui.Adornee = workspace.Terrain
-    billboardGui.StudsOffsetWorldSpace = attribute2 + Vector3.new(0, 4, 0)
+    billboardGui.StudsOffsetWorldSpace = eggPos + Vector3.new(0, 4, 0)
     billboardGui.MaxDistance = 100000
     
     local frame = Instance.new("Frame")
@@ -432,7 +455,7 @@ local function addEsp(arg)
     textLabel.Name = fn2()
     textLabel.LayoutOrder = 1
     createStrokeText(textLabel, 24)
-    textLabel.Text = attribute
+    textLabel.Text = eggName
     textLabel.TextColor3 = tbl3.RarityColors[rarityName] or Color3.fromRGB(255, 255, 255)
     textLabel.Parent = frame
     
@@ -443,67 +466,39 @@ local function addEsp(arg)
     textLabel2.TextColor3 = Color3.fromRGB(230, 232, 240)
     textLabel2.Parent = frame
     
-    billboardGui.Parent = folder
-
-    eggTracker[arg] = {
-        Gui = billboardGui,
-        Info = textLabel2,
-        Rarity = rarityName,
-        Position = attribute2,
-        RawWeight = tonumber(arg:GetAttribute("Weight")) or 0
-    }
+    billboardGui.Parent = espFolder
+    eggTrackers[arg] = { Gui = billboardGui, Info = textLabel2, Rarity = rarityName, Position = eggPos }
 end
 
 local function clearAllEsp()
-    for _, conn in ipairs(connections) do
-        conn:Disconnect()
-    end
-    table.clear(connections)
-
-    for k in pairs(eggTracker) do
-        removeEsp(k)
-    end
-
-    if folder then
-        pcall(function() folder:Destroy() end)
-        folder = nil
-    end
+    for _, conn in ipairs(espConnections) do conn:Disconnect() end
+    table.clear(espConnections)
+    for k in pairs(eggTrackers) do removeEsp(k) end
+    if espFolder then pcall(function() espFolder:Destroy() end); espFolder = nil end
 end
 
 local function initEsp()
     clearAllEsp()
     if not espEnabled then return end
+    espFolder = Instance.new("Folder")
+    espFolder.Name = fn2()
+    espFolder.Parent = guiLocation
     
-    folder = Instance.new("Folder")
-    folder.Name = fn2()
-    folder.Parent = v3
-    
-    local children = activeEggs:GetChildren()
-    for _, child in ipairs(children) do
-        addEsp(child)
-    end
-
-    table.insert(connections, activeEggs.ChildAdded:Connect(function(child)
-        task.defer(addEsp, child)
-    end))
-
-    table.insert(connections, activeEggs.ChildRemoved:Connect(removeEsp))
+    for _, child in ipairs(activeEggs:GetChildren()) do addEsp(child) end
+    table.insert(espConnections, activeEggs.ChildAdded:Connect(function(child) task.defer(addEsp, child) end))
+    table.insert(espConnections, activeEggs.ChildRemoved:Connect(removeEsp))
     
     local timer = 0
-    table.insert(connections, RunService.Heartbeat:Connect(function(deltaTime)
-        timer += deltaTime
+    table.insert(espConnections, RunService.Heartbeat:Connect(function(dt)
+        timer += dt
         if timer < 0.5 then return end
         timer = 0
-        
         local root = tbl3.Root()
         if not root then return end
-
-        for eggInstance, data in pairs(eggTracker) do
+        for eggInstance, data in pairs(eggTrackers) do
             if eggInstance and eggInstance.Parent then
-                local currentWeight = tonumber(eggInstance:GetAttribute("Weight")) or 0
-                local displayWeight = currentWeight * weightRatio
                 local dist = math.floor((data.Position - root.Position).Magnitude)
-                data.Info.Text = string.format("%s  |  %.2fkg  |  %dm", data.Rarity, displayWeight, dist)
+                data.Info.Text = string.format("%s  |  %dm", data.Rarity, dist)
             end
         end
     end))
@@ -514,11 +509,7 @@ espSection:CreateToggle({
     Default = false,
     Callback = function(state)
         espEnabled = state
-        if state then
-            initEsp()
-        else
-            clearAllEsp()
-        end
+        if state then initEsp() else clearAllEsp() end
     end,
 })
 
@@ -530,48 +521,18 @@ espSection:CreateMultiDropdown({
         espTargetRarities = {}
         if type(selected) == "table" then
             for k, val in pairs(selected) do
-                if val == true and type(k) == "string" then
-                    espTargetRarities[k] = true
-                elseif type(val) == "string" then
-                    espTargetRarities[val] = true
-                end
+                if val == true and type(k) == "string" then espTargetRarities[k] = true
+                elseif type(val) == "string" then espTargetRarities[val] = true end
             end
         end
-        if espEnabled then
-            initEsp()
-        end
-    end,
-})
-
-espSection:CreateInput({
-    Name = "Weight Ratio Multiplier",
-    Placeholder = "e.g., 6.51",
-    Default = "6.51",
-    Callback = function(text)
-        local parsed = tonumber(text)
-        if parsed then
-            weightRatio = parsed
-            if espEnabled and folder then
-                local root = tbl3.Root()
-                if root then
-                    for eggInstance, data in pairs(eggTracker) do
-                        if eggInstance and eggInstance.Parent then
-                            local currentWeight = tonumber(eggInstance:GetAttribute("Weight")) or 0
-                            local displayWeight = currentWeight * weightRatio
-                            local dist = math.floor((data.Position - root.Position).Magnitude)
-                            data.Info.Text = string.format("%s  |  %.2fkg  |  %dm", data.Rarity, displayWeight, dist)
-                        end
-                    end
-                end
-            end
-        end
+        if espEnabled then initEsp() end
     end,
 })
 
 v:Finalize({ Window = v2, MainTab = defaultTab, ShowMainTab = true })
 
 -- ==========================================
--- 7. JAEII CUTE TITLE OVERRIDE 
+-- 7. TITLE PATCH OVERRIDE ("Jaeii Cute")
 -- ==========================================
 task.spawn(function()
     for _ = 1, 15 do
